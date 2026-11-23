@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Environment Deployment Tracker</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2328; }
+    table { border-collapse: collapse; width: 100%; max-width: 900px; }
+    th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #d0d7de; }
+    th { background: #f6f8fa; }
+    .success { color: #1a7f37; } .failed { color: #cf222e; } .in-progress { color: #9a6700; }
+  </style>
+</head>
+<body>
+  <h1>Environment Deployment Tracker</h1>
+  <table>
+    <thead><tr><th>Environment</th><th>Service</th><th>Version</th><th>Status</th><th>Deployed</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="5">Loading…</td></tr></tbody>
+  </table>
+  <script>
+    fetch('deployments.json')
+      .then(r => r.json())
+      .then(data => {
+        const rows = document.getElementById('rows');
+        rows.replaceChildren(...data.map(d => {
+          const tr = document.createElement('tr');
+          [d.environment, d.service, d.version, d.status, new Date(d.deployedAt).toLocaleString()]
+            .forEach((v, i) => {
+              const td = document.createElement('td');
+              td.textContent = v;
+              if (i === 3) td.className = d.status;
+              tr.append(td);
+            });
+          return tr;
+        }));
+      })
+      .catch(() => { document.getElementById('rows').innerHTML = '<tr><td colspan="5">Failed to load deployments.json</td></tr>'; });
+  </script>
+</body>
+</html>

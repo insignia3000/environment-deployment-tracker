@@ -1,0 +1,5 @@
+[
+  { "environment": "dev",     "service": "web-app", "version": "1.4.0", "status": "success", "deployedAt": "2026-11-23T01:00:00Z" },
+  { "environment": "staging", "service": "web-app", "version": "1.3.2", "status": "success", "deployedAt": "2026-11-20T04:30:00Z" },
+  { "environment": "prod",    "service": "web-app", "version": "1.3.1", "status": "success", "deployedAt": "2026-11-15T22:10:00Z" }
+]
