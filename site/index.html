@@ -9,57 +9,28 @@
     table { border-collapse: collapse; width: 100%; }
     th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #d0d7de; }
     th { background: #f6f8fa; }
-    button { padding: .4rem .7rem; cursor: pointer; }
-    button:disabled { cursor: wait; }
-    input, select { font: inherit; padding: .4rem; box-sizing: border-box; }
-    td input { width: 100%; min-width: 9rem; }
-    td input[type="datetime-local"] { min-width: 17rem; }
-    td form { display: flex; gap: .4rem; }
-    td form[hidden] { display: none; }
-    td form.confirm { flex-wrap: wrap; align-items: center; }
-    td form.confirm label { display: flex; flex-direction: column; gap: .2rem; }
-    fieldset { border: 0; padding: 0; min-width: 0; }
-    #token { width: min(100%, 30rem); }
+    a.button { display: inline-block; padding: .45rem .7rem; color: white; background: #0969da; border-radius: .35rem; text-decoration: none; }
+    a.button:hover { background: #0550ae; }
     #message { padding: .75rem; background: #f6f8fa; }
     #message.error { color: #b42318; background: #fff1f0; }
-    input:focus, select:focus, button:focus-visible { outline: 2px solid #0969da; outline-offset: 2px; }
+    a:focus-visible { outline: 2px solid #0969da; outline-offset: 2px; }
     .table-container { overflow-x: auto; }
   </style>
 </head>
 <body>
   <h1>Environment Deployment Tracker</h1>
-  <p>Click a field to edit it, then save that row. Save, Reset and Delete ask for your name. Use <strong>New deployment</strong> to add an item.
-    Choose an environment from dev1 through dev6. Deployment times use your local timezone (<span id="timezone"></span>).</p>
-  <p><strong>Public POC:</strong> all saved details and their history are public.
-    "Deployed by" is entered manually, not verified. Saving records a deployment; it does not deploy an application.</p>
-  <details>
-    <summary>Enable saving with a GitHub token</summary>
-    <p>Create a short-lived <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">fine-grained token</a>
-      restricted to <strong>environment-deployment-tracker</strong>, with <strong>Contents: Read and write</strong>.
-      Your GitHub account must have repository write access.</p>
-    <p>The token is sent only to api.github.com, kept in memory, and cleared on reload.
-      Never paste it into a deployment field. Use Clear token when finished.</p>
-    <form id="auth-form">
-      <label for="token">GitHub token</label>
-      <input id="token" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" required>
-      <button type="submit">Use token</button>
-      <button type="button" id="clear-token">Clear token</button>
-    </form>
-  </details>
-  <p id="auth-status" role="status">Read-only until a token is supplied.</p>
+  <p>This page is read-only. Add or manage deployments through GitHub Actions, where GitHub requires an authorised repository account and records who ran the workflow. Deployment times display in your local timezone (<span id="timezone"></span>).</p>
+  <p><strong>Public tracker:</strong> deployment details and repository history are visible to everyone. Actions can only be run by people with write access to this repository.</p>
+  <p><a class="button" href="https://github.com/insignia3000/environment-deployment-tracker/actions/workflows/manage-deployments.yml">Add deployment in GitHub Actions</a></p>
   <p id="message" role="status" aria-live="polite">Loading published deployments...</p>
-  <fieldset id="editor" disabled>
-  <button type="button" id="add-deployment">New deployment</button>
   <div class="table-container">
   <table>
     <thead><tr><th>Deployed by</th><th>Branch</th><th>Version</th><th>Environment</th><th>Deployed</th><th>Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
   </table>
   </div>
-  </fieldset>
-  <p>Each Save commits to GitHub immediately. Other viewers see updates after Pages finishes and they reload.
-    The <a href="https://github.com/insignia3000/environment-deployment-tracker/actions">Pages workflow</a>
-    republishes the site in the background.</p>
-  <script type="module" src="tracker.mjs?v=4"></script>
+  <p>For each row, use <strong>Manage in GitHub Actions</strong> to edit or delete it. Enter the environment and branch exactly as shown in the Actions form. Add a row through the button above. Environment changes require deleting the existing row and adding a new one.</p>
+  <p>Changes are committed by GitHub Actions and appear here after Pages finishes publishing and you reload.</p>
+  <script type="module" src="tracker.mjs?v=5"></script>
 </body>
 </html>

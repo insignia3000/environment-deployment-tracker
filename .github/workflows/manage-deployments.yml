@@ -1,0 +1,94 @@
+name: Manage deployments
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Add, update, or delete a deployment
+        type: choice
+        options: [add, update, delete]
+        required: true
+      environment:
+        description: Target environment (for add, this is the new row's environment)
+        type: choice
+        options: [dev1, dev2, dev3, dev4, dev5, dev6]
+        required: true
+      branch:
+        description: Target branch (for add, this is the new row's branch)
+        type: string
+        required: true
+      version:
+        description: New version (required for add; leave blank to keep the current version when updating)
+        type: string
+        required: false
+      new_branch:
+        description: New branch when updating an existing row (leave blank to keep it)
+        type: string
+        required: false
+      deployed_at:
+        description: "New deployment time with timezone (e.g. 2026-11-24T09:00:00+11:00); blank to use now when adding or keep current when updating"
+        type: string
+        required: false
+      confirm_delete:
+        description: Type DELETE to confirm the delete operation
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-data
+  cancel-in-progress: false
+
+jobs:
+  manage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Require main branch
+        env:
+          SELECTED_REF: ${{ github.ref }}
+        run: |
+          if [ "$SELECTED_REF" != "refs/heads/main" ]; then
+            echo "::error::Select the main branch to manage deployments."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Test deployment management
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Apply requested change
+        env:
+          DEPLOYMENT_OPERATION: ${{ inputs.operation }}
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOYMENT_BRANCH: ${{ inputs.branch }}
+          DEPLOYMENT_VERSION: ${{ inputs.version }}
+          DEPLOYMENT_NEW_BRANCH: ${{ inputs.new_branch }}
+          DEPLOYED_AT: ${{ inputs.deployed_at }}
+          CONFIRM_DELETE: ${{ inputs.confirm_delete }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: python3 scripts/manage_deployments.py
+      - name: Commit and push change
+        env:
+          DEPLOYMENT_OPERATION: ${{ inputs.operation }}
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
+          DEPLOYMENT_BRANCH: ${{ inputs.branch }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/deployments.json
+          git commit -m "${DEPLOYMENT_OPERATION^} deployment ${DEPLOYMENT_ENVIRONMENT}/${DEPLOYMENT_BRANCH} by ${GITHUB_ACTOR}"
+          git push origin HEAD:main
+
+  # GITHUB_TOKEN pushes do not trigger the push-based Pages workflow.
+  publish:
+    needs: manage
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

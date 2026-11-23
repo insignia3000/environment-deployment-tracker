@@ -22,10 +22,10 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
-      - name: Test deployment recording
+      - name: Test deployment workflows
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
-      - name: Test inline editor
-        run: node --test scripts/tracker.test.mjs
+      - name: Check read-only tracker module
+        run: node --check site/tracker.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
