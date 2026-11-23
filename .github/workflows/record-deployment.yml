@@ -5,13 +5,13 @@ on:
     inputs:
       environment:
         description: Environment that was deployed (must match an existing row)
-        type: string
-        default: dev
+        type: choice
+        options: [dev1, dev2, dev3, dev4, dev5, dev6]
         required: true
-      service:
-        description: Service name (must match an existing row)
+      branch:
+        description: Deployed branch name (must match an existing row)
         type: string
-        default: web-app
+        default: main
         required: true
       deployed_at:
         description: "Deployment time with timezone (e.g. 2026-11-24T09:00:00+11:00); leave blank for now"
@@ -47,7 +47,7 @@ jobs:
       - name: Record deployment
         env:
           DEPLOYMENT_ENVIRONMENT: ${{ inputs.environment }}
-          DEPLOYMENT_SERVICE: ${{ inputs.service }}
+          DEPLOYMENT_BRANCH: ${{ inputs.branch }}
           DEPLOYED_AT: ${{ inputs.deployed_at }}
         run: python3 scripts/record_deployment.py
       - name: Save deployment

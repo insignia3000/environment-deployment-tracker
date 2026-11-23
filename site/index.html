@@ -26,7 +26,7 @@
 <body>
   <h1>Environment Deployment Tracker</h1>
   <p>Click a field to edit it, then save that row. Use <strong>New deployment</strong> to add an item.
-    Deployment times use your local timezone (<span id="timezone"></span>).</p>
+    Choose an environment from dev1 through dev6. Deployment times use your local timezone (<span id="timezone"></span>).</p>
   <p><strong>Public POC:</strong> all saved details and their history are public.
     "Deployed by" is entered manually, not verified. Saving records a deployment; it does not deploy an application.</p>
   <details>
@@ -49,14 +49,14 @@
   <button type="button" id="add-deployment">New deployment</button>
   <div class="table-container">
   <table>
-    <thead><tr><th>Environment</th><th>Service</th><th>Version</th><th>Status</th><th>Deployed</th><th>Deployed by</th><th>Actions</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="7">Loading…</td></tr></tbody>
+    <thead><tr><th>Deployed by</th><th>Branch</th><th>Version</th><th>Environment</th><th>Deployed</th><th>Actions</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
   </table>
   </div>
   </fieldset>
   <p>Each Save commits to GitHub immediately. Other viewers see updates after Pages finishes and they reload.
     The <a href="https://github.com/insignia3000/environment-deployment-tracker/actions">Pages workflow</a>
     republishes the site in the background.</p>
-  <script type="module" src="tracker.mjs"></script>
+  <script type="module" src="tracker.mjs?v=2"></script>
 </body>
 </html>

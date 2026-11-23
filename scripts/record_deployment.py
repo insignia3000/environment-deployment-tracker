@@ -5,19 +5,21 @@ import sys
 from datetime import datetime, timezone
 
 
-def record_deployment(deployments, environment, service, deployed_at, actor):
+def record_deployment(deployments, environment, branch, deployed_at, actor):
     if not isinstance(deployments, list) or not all(
         isinstance(entry, dict) for entry in deployments
     ):
         raise ValueError("Deployment data must be an array of objects.")
     if not actor.strip():
         raise ValueError("A GitHub actor is required.")
+    if environment not in ("dev1", "dev2", "dev3", "dev4", "dev5", "dev6"):
+        raise ValueError("Environment must be dev1, dev2, dev3, dev4, dev5, or dev6.")
     matches = [
         entry for entry in deployments
-        if entry.get("environment") == environment and entry.get("service") == service
+        if entry.get("environment") == environment and entry.get("branch") == branch
     ]
     if len(matches) != 1:
-        raise ValueError("Environment and service must match exactly one existing deployment.")
+        raise ValueError("Environment and branch must match exactly one existing deployment.")
 
     if deployed_at.strip():
         try:
@@ -40,7 +42,7 @@ def main():
         updated = record_deployment(
             json.loads(path.read_text(encoding="utf-8")),
             os.environ["DEPLOYMENT_ENVIRONMENT"],
-            os.environ["DEPLOYMENT_SERVICE"],
+            os.environ["DEPLOYMENT_BRANCH"],
             os.environ.get("DEPLOYED_AT", ""),
             os.environ["GITHUB_ACTOR"],
         )

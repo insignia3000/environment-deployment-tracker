@@ -5,7 +5,7 @@ import {
 } from '../site/tracker.mjs';
 
 const item = {
-  environment: 'dev', service: 'web-app', version: '1.4.0', status: 'success',
+  environment: 'dev1', branch: 'main', version: '1.4.0',
   deployedAt: '2026-11-24T00:00:00Z'
 };
 const draft = { ...item, deployedAt: '2026-11-24T01:00:00Z', deployedBy: 'octocat' };
@@ -16,19 +16,36 @@ const response = (body, status = 200) => new Response(JSON.stringify(body), { st
 
 test('editing preserves latest unrelated rows and extra fields', () => {
   const original = { ...item, notes: 'keep this' };
-  const unrelated = { ...item, environment: 'prod', version: '2.0.0' };
+  const unrelated = { ...item, environment: 'dev2', version: '2.0.0' };
   const latest = [original, unrelated];
   const result = mergeDeployment(latest, original, draft);
   assert.deepEqual(result, [{ ...draft, notes: 'keep this' }, unrelated]);
   assert.equal(latest[0], original);
 });
 
-test('creating a deployment and renaming an existing item require a unique environment/service', () => {
-  const addition = { ...draft, environment: 'qa', service: 'api' };
+test('creating a deployment and renaming an existing item require a unique environment/branch', () => {
+  const addition = { ...draft, environment: 'dev4', branch: 'feature/change' };
   assert.deepEqual(mergeDeployment([item], null, addition), [item, addition]);
   assert.deepEqual(mergeDeployment([item], item, addition), [addition]);
   assert.throws(() => mergeDeployment([item], null, draft), /already exists/);
   assert.throws(() => mergeDeployment([item, addition], item, addition), /already exists/);
+  const otherBranch = { ...draft, branch: 'feature/next' };
+  assert.deepEqual(mergeDeployment([item], null, otherBranch), [item, otherBranch]);
+  const otherEnvironment = { ...draft, environment: 'dev6' };
+  assert.deepEqual(mergeDeployment([item], null, otherEnvironment), [item, otherEnvironment]);
+});
+
+test('new deployments accept dev1 through dev6 and reject environments outside that set', () => {
+  for (const environment of ['dev1', 'dev2', 'dev3', 'dev4', 'dev5', 'dev6']) {
+    const addition = { ...draft, environment };
+    assert.deepEqual(mergeDeployment([], null, addition), [addition]);
+  }
+  for (const environment of ['dev0', 'dev7', 'dev', 'staging', 'prod', 'success', '']) {
+    assert.throws(
+      () => mergeDeployment([], null, { ...draft, environment }),
+      /Select an environment from dev1 through dev6/
+    );
+  }
 });
 
 test('stale edits and deleted items cannot overwrite remote changes', () => {
@@ -38,16 +55,16 @@ test('stale edits and deleted items cannot overwrite remote changes', () => {
 
 test('invalid inputs are rejected before saving', () => {
   for (const invalid of [
-    { ...draft, environment: ' ' }, { ...draft, service: '' },
+    { ...draft, environment: ' ' }, { ...draft, branch: '' },
     { ...draft, version: '' }, { ...draft, deployedBy: ' ' },
-    { ...draft, status: 'unknown' }, { ...draft, deployedAt: 'yesterday' }
+    { ...draft, deployedAt: 'yesterday' }
   ]) {
     assert.throws(() => mergeDeployment([item], item, invalid), Error);
   }
 });
 
 test('UTF-8 values survive the GitHub base64 round trip', async () => {
-  const data = [{ ...draft, deployedBy: 'Jos\u00e9', service: '\u65e5\u672c' }];
+  const data = [{ ...draft, deployedBy: 'Jos\u00e9', branch: '\u65e5\u672c' }];
   const encoded = encodeContent(JSON.stringify(data));
   assert.equal(decodeContent(encoded), JSON.stringify(data));
   const result = await readDeployments('', async () => response(file(data)));
@@ -56,7 +73,7 @@ test('UTF-8 values survive the GitHub base64 round trip', async () => {
 
 test('save reads the latest SHA and commits merged data only to the intended GitHub endpoint', async () => {
   const requests = [];
-  const unrelated = { ...item, environment: 'prod', version: '2.0.0' };
+  const unrelated = { ...item, environment: 'dev2', version: '2.0.0' };
   const fetcher = async (url, options) => {
     requests.push({ url, options });
     return response(options.method === 'PUT' ? { commit: { sha: 'new-commit' } } : file([item, unrelated]));
@@ -78,7 +95,7 @@ test('save reads the latest SHA and commits merged data only to the intended Git
 });
 
 test('new deployment is committed alongside existing items', async () => {
-  const addition = { ...draft, environment: 'qa' };
+  const addition = { ...draft, environment: 'dev6' };
   let committed;
   const fetcher = async (url, options) => {
     if (options.method !== 'PUT') return response(file([item]));

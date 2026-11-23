@@ -13,12 +13,18 @@ Proof of concept: a static page showing what version is deployed to each environ
    The token's account must have repository write access, and branch rules must permit direct commits to `main`.
 3. Enter it in the password field and select **Use token**. It stays in memory only, not cookies or browser storage.
    Refreshing clears it. **Clear token** removes it when finished; revoke it in GitHub settings if necessary.
-4. Click the table fields to edit the environment, service, version, status, deployment time, or deployed-by name.
-   Times display in your browser's local timezone and are stored as UTC. Deployed-by is manually entered, not verified.
+4. Click the table fields to edit **Deployed by**, **Branch**, **Version**, **Environment**, or **Deployed**.
+   The environment selector offers only `dev1`, `dev2`, `dev3`, `dev4`, `dev5`, and `dev6`.
+   Times display in your browser's local timezone and are stored as UTC.
+   The first column holds the deploying person's name, entered manually and not verified;
+   Branch holds the branch used for the deployment. There is no separate status or service field.
 5. To create an item, select **New deployment**, fill in all fields, and choose **Save**.
-   Environment/service pairs must be unique. New environments and services are supported.
+   Environment/branch pairs must be unique. The same branch can appear in different environments.
 6. Each row's **Save** commits that row to `site/deployments.json`. **Reset** discards that row's edits;
    **Cancel** removes an unsaved new row. Saving one row preserves drafts in other rows.
+
+The bundled rows are sample data for `dev1` through `dev3`, with `main` as a placeholder
+branch and no recorded deployer. Replace these with actual details before saving.
 
 The page loads the published JSON without using the GitHub API. Saved items appear
 immediately in your edited row; other viewers must wait for the Pages publishing
@@ -41,10 +47,11 @@ does not deploy an application or verify who actually deployed it.
 
 ## Alternative: GitHub Actions form
 
-The **Record deployment** workflow remains available in Actions. Select `main`, enter an
-existing environment/service pair, and optionally supply an ISO 8601 time with a timezone
+The **Record deployment** workflow remains available in Actions. Select `main` as the workflow
+branch, choose an environment from `dev1` through `dev6`, enter the deployed branch from an
+existing environment/branch pair, and optionally supply an ISO 8601 time with a timezone
 (blank means now). It records the submitting GitHub username and changes only the deployment
-time and deployed-by fields. It calls Pages explicitly because `GITHUB_TOKEN` pushes do not
+time and the first column's deployed-by field. It calls Pages explicitly because `GITHUB_TOKEN` pushes do not
 start push workflows. Recording runs are serialized, but GitHub can replace an older pending
 run with a newer one; check that your run finished.
 

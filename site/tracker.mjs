@@ -1,7 +1,7 @@
 const API = 'https://api.github.com/repos/insignia3000/environment-deployment-tracker/contents/site/deployments.json';
-const STATUSES = ['success', 'failed', 'in-progress'];
-const FIELDS = ['environment', 'service', 'version', 'status', 'deployedAt', 'deployedBy'];
-const key = item => JSON.stringify([item.environment, item.service]);
+const ENVIRONMENTS = ['dev1', 'dev2', 'dev3', 'dev4', 'dev5', 'dev6'];
+const FIELDS = ['deployedBy', 'branch', 'version', 'environment', 'deployedAt'];
+const key = item => JSON.stringify([item.environment, item.branch]);
 
 export function validateData(data) {
   if (!Array.isArray(data)) throw new Error('Deployment data must be an array.');
@@ -10,19 +10,19 @@ export function validateData(data) {
     if (!item || typeof item !== 'object' || Array.isArray(item)) {
       throw new Error('Each deployment must be an object.');
     }
-    for (const field of ['environment', 'service', 'version']) {
+    for (const field of ['branch', 'version']) {
       if (typeof item[field] !== 'string' || !item[field].trim() || item[field].length > 120) {
         throw new Error(`${field} must contain between 1 and 120 characters.`);
       }
     }
-    if (!STATUSES.includes(item.status)) throw new Error('Select a valid deployment status.');
+    if (!ENVIRONMENTS.includes(item.environment)) throw new Error('Select an environment from dev1 through dev6.');
     if (typeof item.deployedAt !== 'string' || !Number.isFinite(Date.parse(item.deployedAt))) {
       throw new Error('Enter a valid deployment time.');
     }
     if (item.deployedBy !== undefined && (typeof item.deployedBy !== 'string' || item.deployedBy.length > 120)) {
       throw new Error('Deployed by must be text of at most 120 characters.');
     }
-    if (keys.has(key(item))) throw new Error('An item with that environment and service already exists.');
+    if (keys.has(key(item))) throw new Error('An item with that environment and branch already exists.');
     keys.add(key(item));
   }
   return data;
@@ -156,18 +156,18 @@ function startEditor() {
     const form = document.createElement('form');
     form.id = `deployment-${++nextId}`;
     const values = original || {
-      environment: '', service: '', version: '', status: 'success',
-      deployedAt: new Date().toISOString(), deployedBy: ''
+      deployedBy: '', branch: '', version: '', environment: 'dev1',
+      deployedAt: new Date().toISOString()
     };
     const controls = {};
     for (const field of FIELDS) {
       const td = document.createElement('td');
-      const control = document.createElement(field === 'status' ? 'select' : 'input');
-      if (field === 'status') {
-        for (const status of STATUSES) {
+      const control = document.createElement(field === 'environment' ? 'select' : 'input');
+      if (field === 'environment') {
+        for (const environment of ENVIRONMENTS) {
           const option = document.createElement('option');
-          option.value = status;
-          option.textContent = status;
+          option.value = environment;
+          option.textContent = environment;
           control.append(option);
         }
       } else {
@@ -184,8 +184,11 @@ function startEditor() {
       control.required = true;
       control.name = field;
       control.setAttribute('form', form.id);
-      const label = { deployedAt: 'Deployed time', deployedBy: 'Deployed by' }[field] || field;
-      control.setAttribute('aria-label', `${label} (${original ? `${original.environment}/${original.service}` : 'new deployment'})`);
+      const label = {
+        deployedBy: 'Deployed by', branch: 'Branch', version: 'Version',
+        environment: 'Environment', deployedAt: 'Deployed time'
+      }[field];
+      control.setAttribute('aria-label', `${label} (${original ? `${original.environment}/${original.branch}` : 'new deployment'})`);
       control.addEventListener('input', () => dirtyForms.add(form));
       control.addEventListener('change', () => dirtyForms.add(form));
       controls[field] = control;
