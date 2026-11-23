@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  decodeContent, encodeContent, localTime, mergeDeployment, readDeployments, saveDeployment
+  decodeContent, deleteDeployment, encodeContent, localTime, mergeDeployment, readDeployments,
+  removeDeployment, saveDeployment, validateActor
 } from '../site/tracker.mjs';
 
 const item = {
@@ -136,4 +137,40 @@ test('malformed reads and unverified save responses cannot report success', asyn
 test('local datetime values preserve the deployment instant including seconds', () => {
   const iso = '2026-11-24T00:01:02.123Z';
   assert.equal(new Date(localTime(iso)).toISOString(), iso);
+});
+
+test('reset and delete require a single-line name of at most 120 characters', () => {
+  assert.equal(validateActor('  Mona Lisa '), 'Mona Lisa');
+  for (const invalid of ['', '   ', 'a'.repeat(121), 'Mona\nLisa', undefined]) {
+    assert.throws(() => validateActor(invalid), /Enter your name/);
+  }
+});
+
+test('deleting removes only the matching row and refuses stale or missing rows', () => {
+  const unrelated = { ...item, environment: 'dev2' };
+  assert.deepEqual(removeDeployment([item, unrelated], item), [unrelated]);
+  assert.throws(() => removeDeployment([{ ...item, version: '9.9.9' }], item), /changed on GitHub/);
+  assert.throws(() => removeDeployment([unrelated], item), /changed on GitHub/);
+});
+
+test('delete commits the removal with the deleter named in the commit message', async () => {
+  const unrelated = { ...item, environment: 'dev2' };
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push(options);
+    return response(options.method === 'PUT' ? { commit: { sha: 'new-commit' } } : file([item, unrelated]));
+  };
+  assert.deepEqual(await deleteDeployment('test-token', item, ' Mona ', fetcher), [unrelated]);
+  const body = JSON.parse(requests[1].body);
+  assert.equal(body.sha, 'latest-sha');
+  assert.equal(body.message, 'Delete deployment item dev1/main\n\nDeleted by: Mona');
+  assert.deepEqual(JSON.parse(decodeContent(body.content)), [unrelated]);
+});
+
+test('delete without a name or token never contacts GitHub', async () => {
+  const calls = [];
+  const fetcher = async () => { calls.push(1); return response(file([item])); };
+  await assert.rejects(deleteDeployment('test-token', item, ' ', fetcher), /Enter your name/);
+  await assert.rejects(deleteDeployment('', item, 'Mona', fetcher), /token first/);
+  assert.equal(calls.length, 0);
 });

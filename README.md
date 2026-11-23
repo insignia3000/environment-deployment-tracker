@@ -20,8 +20,12 @@ Proof of concept: a static page showing what version is deployed to each environ
    Branch holds the branch used for the deployment. There is no separate status or service field.
 5. To create an item, select **New deployment**, fill in all fields, and choose **Save**.
    Environment/branch pairs must be unique. The same branch can appear in different environments.
-6. Each row's **Save** commits that row to `site/deployments.json`. **Reset** discards that row's edits;
-   **Cancel** removes an unsaved new row. Saving one row preserves drafts in other rows.
+6. Each row's **Save** commits that row to `site/deployments.json`. **Cancel** removes an unsaved
+   new row. Saving one row preserves drafts in other rows.
+7. **Reset** and **Delete** first ask for the name of the person performing the action. **Reset**
+   discards that row's unsaved edits (nothing is committed). **Delete** removes the saved row from
+   GitHub and records the name in the commit message (`Deleted by: NAME`), so it appears in the
+   repository history.
 
 The bundled rows are sample data for `dev1` through `dev3`, with `main` as a placeholder
 branch and no recorded deployer. Replace these with actual details before saving.

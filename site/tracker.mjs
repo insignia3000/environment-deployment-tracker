@@ -2,6 +2,7 @@ const API = 'https://api.github.com/repos/insignia3000/environment-deployment-tr
 const ENVIRONMENTS = ['dev1', 'dev2', 'dev3', 'dev4', 'dev5', 'dev6'];
 const FIELDS = ['deployedBy', 'branch', 'version', 'environment', 'deployedAt'];
 const key = item => JSON.stringify([item.environment, item.branch]);
+const snapshot = item => JSON.stringify(Object.keys(item).sort().map(field => [field, item[field]]));
 
 export function validateData(data) {
   if (!Array.isArray(data)) throw new Error('Deployment data must be an array.');
@@ -34,11 +35,27 @@ export function mergeDeployment(latest, original, draft) {
   if (!draft.deployedBy?.trim()) throw new Error('Enter who deployed this item.');
   if (!original) return validateData([...latest, draft]);
   const index = latest.findIndex(item => key(item) === key(original));
-  const snapshot = item => JSON.stringify(Object.keys(item).sort().map(field => [field, item[field]]));
   if (index === -1 || snapshot(latest[index]) !== snapshot(original)) {
     throw new Error('This item changed on GitHub. Copy your edits, reload, and review the latest values before saving.');
   }
   return validateData(latest.map((item, i) => i === index ? { ...item, ...draft } : item));
+}
+
+export function validateActor(name) {
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  if (!trimmed || trimmed.length > 120 || /[\r\n]/.test(trimmed)) {
+    throw new Error('Enter your name (1 to 120 characters, single line).');
+  }
+  return trimmed;
+}
+
+export function removeDeployment(latest, original) {
+  validateData(latest);
+  const index = latest.findIndex(item => key(item) === key(original));
+  if (index === -1 || snapshot(latest[index]) !== snapshot(original)) {
+    throw new Error('This item changed on GitHub. Reload and review the latest values before deleting.');
+  }
+  return latest.filter((_, i) => i !== index);
 }
 
 export function encodeContent(value) {
@@ -90,23 +107,37 @@ export async function readDeployments(token = '', fetcher = fetch) {
   return { data: validateData(JSON.parse(decodeContent(file.content))), sha: file.sha };
 }
 
-export async function saveDeployment(token, original, draft, fetcher = fetch) {
-  if (!token) throw new Error('Enable saving with a GitHub token first.');
-  const { data, sha } = await readDeployments(token, fetcher);
-  const updated = mergeDeployment(data, original, draft);
+async function commit(token, data, sha, message, fetcher) {
   const result = await request(token, {
     method: 'PUT',
     body: JSON.stringify({
-      message: original ? 'Update deployment item' : 'Add deployment item',
+      message,
       branch: 'main',
       sha,
-      content: encodeContent(JSON.stringify(updated, null, 2) + '\n')
+      content: encodeContent(JSON.stringify(data, null, 2) + '\n')
     })
   }, fetcher);
   if (!result.commit?.sha) {
     throw new Error('GitHub returned an unexpected save response. Reload and verify the item before retrying.');
   }
+}
+
+export async function saveDeployment(token, original, draft, fetcher = fetch) {
+  if (!token) throw new Error('Enable saving with a GitHub token first.');
+  const { data, sha } = await readDeployments(token, fetcher);
+  const updated = mergeDeployment(data, original, draft);
+  await commit(token, updated, sha, original ? 'Update deployment item' : 'Add deployment item', fetcher);
   return updated.find(item => key(item) === key(draft));
+}
+
+export async function deleteDeployment(token, original, deletedBy, fetcher = fetch) {
+  const name = validateActor(deletedBy);
+  if (!token) throw new Error('Enable saving with a GitHub token first.');
+  const { data, sha } = await readDeployments(token, fetcher);
+  const updated = removeDeployment(data, original);
+  await commit(token, updated, sha,
+    `Delete deployment item ${original.environment}/${original.branch}\n\nDeleted by: ${name}`, fetcher);
+  return updated;
 }
 
 export function localTime(iso) {
@@ -202,14 +233,93 @@ function startEditor() {
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.textContent = original ? 'Reset' : 'Cancel';
-    cancel.addEventListener('click', () => {
-      dirtyForms.delete(form);
-      if (original) tr.replaceWith(createRow(original));
-      else tr.remove();
-    });
     form.append(save, cancel);
     actions.append(form);
     tr.append(actions);
+    if (!original) {
+      cancel.addEventListener('click', () => {
+        dirtyForms.delete(form);
+        tr.remove();
+      });
+    } else {
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Delete';
+      form.append(remove);
+      const rowLabel = `${original.environment}/${original.branch}`;
+      const confirmForm = document.createElement('form');
+      confirmForm.className = 'confirm';
+      confirmForm.hidden = true;
+      const nameLabel = document.createElement('label');
+      const nameText = document.createElement('span');
+      const nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.name = 'actor';
+      nameInput.maxLength = 120;
+      nameInput.required = true;
+      nameInput.autocomplete = 'name';
+      const confirmButton = document.createElement('button');
+      confirmButton.type = 'submit';
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.textContent = 'Back';
+      nameLabel.append(nameText, nameInput);
+      confirmForm.append(nameLabel, confirmButton, back);
+      actions.append(confirmForm);
+      let pendingAction = '';
+      const openPrompt = action => {
+        pendingAction = action;
+        nameText.textContent = `Name of person ${action === 'delete' ? 'deleting' : 'resetting'} ${rowLabel}: `;
+        confirmButton.textContent = action === 'delete' ? 'Confirm delete' : 'Confirm reset';
+        form.hidden = true;
+        confirmForm.hidden = false;
+        nameInput.value = '';
+        nameInput.focus();
+      };
+      const closePrompt = () => {
+        confirmForm.hidden = true;
+        form.hidden = false;
+        (pendingAction === 'delete' ? remove : cancel).focus();
+      };
+      cancel.addEventListener('click', () => openPrompt('reset'));
+      remove.addEventListener('click', () => openPrompt('delete'));
+      back.addEventListener('click', closePrompt);
+      confirmForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (saving) return;
+        let name;
+        try {
+          name = validateActor(nameInput.value);
+        } catch (error) {
+          showMessage(error.message, true);
+          nameInput.focus();
+          return;
+        }
+        if (pendingAction === 'reset') {
+          dirtyForms.delete(form);
+          const replacement = createRow(original);
+          tr.replaceWith(replacement);
+          replacement.querySelector('button').focus();
+          showMessage(`${rowLabel} reset to its saved values by ${name}.`);
+          return;
+        }
+        try {
+          saving = true;
+          editor.disabled = true;
+          showMessage(`Deleting ${rowLabel} from GitHub...`);
+          await deleteDeployment(token, original, name);
+          dirtyForms.delete(form);
+          tr.remove();
+          document.getElementById('add-deployment').focus();
+          showMessage(`${rowLabel} deleted by ${name}. Other viewers will see the change after Pages finishes and they reload.`);
+        } catch (error) {
+          showMessage(error.message, true);
+        } finally {
+          saving = false;
+          editor.disabled = false;
+        }
+      });
+    }
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (saving) return;

@@ -15,6 +15,9 @@
     td input { width: 100%; min-width: 9rem; }
     td input[type="datetime-local"] { min-width: 17rem; }
     td form { display: flex; gap: .4rem; }
+    td form[hidden] { display: none; }
+    td form.confirm { flex-wrap: wrap; align-items: center; }
+    td form.confirm label { display: flex; flex-direction: column; gap: .2rem; }
     fieldset { border: 0; padding: 0; min-width: 0; }
     #token { width: min(100%, 30rem); }
     #message { padding: .75rem; background: #f6f8fa; }
@@ -25,7 +28,7 @@
 </head>
 <body>
   <h1>Environment Deployment Tracker</h1>
-  <p>Click a field to edit it, then save that row. Use <strong>New deployment</strong> to add an item.
+  <p>Click a field to edit it, then save that row. Reset and Delete ask for your name. Use <strong>New deployment</strong> to add an item.
     Choose an environment from dev1 through dev6. Deployment times use your local timezone (<span id="timezone"></span>).</p>
   <p><strong>Public POC:</strong> all saved details and their history are public.
     "Deployed by" is entered manually, not verified. Saving records a deployment; it does not deploy an application.</p>
@@ -57,6 +60,6 @@
   <p>Each Save commits to GitHub immediately. Other viewers see updates after Pages finishes and they reload.
     The <a href="https://github.com/insignia3000/environment-deployment-tracker/actions">Pages workflow</a>
     republishes the site in the background.</p>
-  <script type="module" src="tracker.mjs?v=2"></script>
+  <script type="module" src="tracker.mjs?v=3"></script>
 </body>
 </html>
