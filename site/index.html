@@ -10,32 +10,55 @@
     th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #d0d7de; }
     th { background: #f6f8fa; }
     .success { color: #1a7f37; } .failed { color: #cf222e; } .in-progress { color: #9a6700; }
+    .button { display: inline-block; padding: .4rem .7rem; border: 1px solid #8c959f; border-radius: 6px; color: #0969da; text-decoration: none; }
+    .table-container { overflow-x: auto; }
   </style>
 </head>
 <body>
   <h1>Environment Deployment Tracker</h1>
+  <p>Record a deployment using the GitHub Actions form. Choose the environment and service,
+    and optionally enter the deployment time (defaults to now). The submitting GitHub user is recorded automatically.</p>
+  <p><a class="button" href="https://github.com/insignia3000/environment-deployment-tracker/actions/workflows/record-deployment.yml">Record deployment</a></p>
+  <p>Saving requires repository write access. Updates appear after the recording and publishing workflows finish.
+    All deployment details on this page are public.</p>
+  <div class="table-container">
   <table>
-    <thead><tr><th>Environment</th><th>Service</th><th>Version</th><th>Status</th><th>Deployed</th></tr></thead>
-    <tbody id="rows"><tr><td colspan="5">Loading…</td></tr></tbody>
+    <thead><tr><th>Environment</th><th>Service</th><th>Version</th><th>Status</th><th>Deployed</th><th>Deployed by</th><th>Actions</th></tr></thead>
+    <tbody id="rows"><tr><td colspan="7">Loading…</td></tr></tbody>
   </table>
+  </div>
   <script>
-    fetch('deployments.json')
-      .then(r => r.json())
+    fetch('deployments.json', { cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error(`Failed to load deployments: HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         const rows = document.getElementById('rows');
         rows.replaceChildren(...data.map(d => {
           const tr = document.createElement('tr');
-          [d.environment, d.service, d.version, d.status, new Date(d.deployedAt).toLocaleString()]
+          [d.environment, d.service, d.version, d.status, new Date(d.deployedAt).toLocaleString(), d.deployedBy || 'Not recorded']
             .forEach((v, i) => {
               const td = document.createElement('td');
               td.textContent = v;
               if (i === 3) td.className = d.status;
               tr.append(td);
             });
+          const action = document.createElement('td');
+          const link = document.createElement('a');
+          link.href = 'https://github.com/insignia3000/environment-deployment-tracker/actions/workflows/record-deployment.yml';
+          link.className = 'button';
+          link.textContent = 'Record deployment';
+          link.setAttribute('aria-label', `Record deployment for ${d.service} in ${d.environment}`);
+          action.append(link);
+          tr.append(action);
           return tr;
         }));
       })
-      .catch(() => { document.getElementById('rows').innerHTML = '<tr><td colspan="5">Failed to load deployments.json</td></tr>'; });
+      .catch(error => {
+        console.error(error);
+        document.getElementById('rows').innerHTML = '<tr><td colspan="7">Failed to load deployments.json. Please reload the page.</td></tr>';
+      });
   </script>
 </body>
 </html>
