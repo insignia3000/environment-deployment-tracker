@@ -122,11 +122,13 @@ async function commit(token, data, sha, message, fetcher) {
   }
 }
 
-export async function saveDeployment(token, original, draft, fetcher = fetch) {
+export async function saveDeployment(token, original, draft, savedBy, fetcher = fetch) {
+  const name = validateActor(savedBy);
   if (!token) throw new Error('Enable saving with a GitHub token first.');
   const { data, sha } = await readDeployments(token, fetcher);
   const updated = mergeDeployment(data, original, draft);
-  await commit(token, updated, sha, original ? 'Update deployment item' : 'Add deployment item', fetcher);
+  await commit(token, updated, sha,
+    `${original ? 'Update' : 'Add'} deployment item\n\nSaved by: ${name}`, fetcher);
   return updated.find(item => key(item) === key(draft));
 }
 
@@ -241,101 +243,101 @@ function startEditor() {
         dirtyForms.delete(form);
         tr.remove();
       });
-    } else {
-      const remove = document.createElement('button');
+    }
+    const remove = original ? document.createElement('button') : null;
+    if (remove) {
       remove.type = 'button';
       remove.textContent = 'Delete';
       form.append(remove);
-      const rowLabel = `${original.environment}/${original.branch}`;
-      const confirmForm = document.createElement('form');
-      confirmForm.className = 'confirm';
+    }
+    const rowLabel = original ? `${original.environment}/${original.branch}` : 'new deployment';
+    const confirmForm = document.createElement('form');
+    confirmForm.className = 'confirm';
+    confirmForm.hidden = true;
+    const nameLabel = document.createElement('label');
+    const nameText = document.createElement('span');
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.name = 'actor';
+    nameInput.maxLength = 120;
+    nameInput.required = true;
+    nameInput.autocomplete = 'name';
+    const confirmButton = document.createElement('button');
+    confirmButton.type = 'submit';
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.textContent = 'Back';
+    nameLabel.append(nameText, nameInput);
+    confirmForm.append(nameLabel, confirmButton, back);
+    actions.append(confirmForm);
+    let pendingAction = '';
+    const openPrompt = action => {
+      pendingAction = action;
+      const verb = { save: 'saving', delete: 'deleting', reset: 'resetting' }[action];
+      nameText.textContent = `Name of person ${verb} ${rowLabel}: `;
+      confirmButton.textContent = `Confirm ${action}`;
+      form.hidden = true;
+      confirmForm.hidden = false;
+      nameInput.value = '';
+      nameInput.focus();
+    };
+    const closePrompt = () => {
       confirmForm.hidden = true;
-      const nameLabel = document.createElement('label');
-      const nameText = document.createElement('span');
-      const nameInput = document.createElement('input');
-      nameInput.type = 'text';
-      nameInput.name = 'actor';
-      nameInput.maxLength = 120;
-      nameInput.required = true;
-      nameInput.autocomplete = 'name';
-      const confirmButton = document.createElement('button');
-      confirmButton.type = 'submit';
-      const back = document.createElement('button');
-      back.type = 'button';
-      back.textContent = 'Back';
-      nameLabel.append(nameText, nameInput);
-      confirmForm.append(nameLabel, confirmButton, back);
-      actions.append(confirmForm);
-      let pendingAction = '';
-      const openPrompt = action => {
-        pendingAction = action;
-        nameText.textContent = `Name of person ${action === 'delete' ? 'deleting' : 'resetting'} ${rowLabel}: `;
-        confirmButton.textContent = action === 'delete' ? 'Confirm delete' : 'Confirm reset';
-        form.hidden = true;
-        confirmForm.hidden = false;
-        nameInput.value = '';
+      form.hidden = false;
+      (pendingAction === 'save' ? save : pendingAction === 'delete' ? remove : cancel).focus();
+    };
+    if (original) cancel.addEventListener('click', () => openPrompt('reset'));
+    remove?.addEventListener('click', () => openPrompt('delete'));
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!saving) openPrompt('save');
+    });
+    back.addEventListener('click', closePrompt);
+    confirmForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (saving) return;
+      let name;
+      try {
+        name = validateActor(nameInput.value);
+      } catch (error) {
+        showMessage(error.message, true);
         nameInput.focus();
-      };
-      const closePrompt = () => {
-        confirmForm.hidden = true;
-        form.hidden = false;
-        (pendingAction === 'delete' ? remove : cancel).focus();
-      };
-      cancel.addEventListener('click', () => openPrompt('reset'));
-      remove.addEventListener('click', () => openPrompt('delete'));
-      back.addEventListener('click', closePrompt);
-      confirmForm.addEventListener('submit', async event => {
-        event.preventDefault();
-        if (saving) return;
-        let name;
-        try {
-          name = validateActor(nameInput.value);
-        } catch (error) {
-          showMessage(error.message, true);
-          nameInput.focus();
-          return;
+        return;
+      }
+      if (pendingAction === 'reset') {
+        dirtyForms.delete(form);
+        const replacement = createRow(original);
+        tr.replaceWith(replacement);
+        replacement.querySelector('button').focus();
+        showMessage(`${rowLabel} reset to its saved values by ${name}.`);
+        return;
+      }
+      try {
+        let draft;
+        if (pendingAction === 'save') {
+          if (!form.reportValidity()) return;
+          draft = Object.fromEntries(FIELDS.map(field => [field, controls[field].value.trim()]));
+          if (!draft.deployedAt) throw new Error('Enter a deployment time.');
+          draft.deployedAt = new Date(draft.deployedAt).toISOString();
         }
-        if (pendingAction === 'reset') {
+        saving = true;
+        editor.disabled = true;
+        if (pendingAction === 'save') {
+          showMessage('Saving to GitHub...');
+          const saved = await saveDeployment(token, original, draft, name);
           dirtyForms.delete(form);
-          const replacement = createRow(original);
+          const replacement = createRow(saved);
           tr.replaceWith(replacement);
           replacement.querySelector('button').focus();
-          showMessage(`${rowLabel} reset to its saved values by ${name}.`);
-          return;
-        }
-        try {
-          saving = true;
-          editor.disabled = true;
+          showMessage(`Saved to GitHub by ${name}. Other viewers will see updates after Pages finishes and they reload.`);
+        } else {
           showMessage(`Deleting ${rowLabel} from GitHub...`);
           await deleteDeployment(token, original, name);
           dirtyForms.delete(form);
           tr.remove();
           document.getElementById('add-deployment').focus();
           showMessage(`${rowLabel} deleted by ${name}. Other viewers will see the change after Pages finishes and they reload.`);
-        } catch (error) {
-          showMessage(error.message, true);
-        } finally {
-          saving = false;
-          editor.disabled = false;
         }
-      });
-    }
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      if (saving) return;
-      const draft = Object.fromEntries(FIELDS.map(field => [field, controls[field].value.trim()]));
-      try {
-        if (!draft.deployedAt) throw new Error('Enter a deployment time.');
-        draft.deployedAt = new Date(draft.deployedAt).toISOString();
-        saving = true;
-        editor.disabled = true;
-        showMessage('Saving to GitHub...');
-        const saved = await saveDeployment(token, original, draft);
-        dirtyForms.delete(form);
-        const replacement = createRow(saved);
-        tr.replaceWith(replacement);
-        replacement.querySelector('button').focus();
-        showMessage('Saved to GitHub. Other viewers will see updates after Pages finishes and they reload.');
       } catch (error) {
         showMessage(error.message, true);
       } finally {

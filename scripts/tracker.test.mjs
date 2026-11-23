@@ -79,7 +79,7 @@ test('save reads the latest SHA and commits merged data only to the intended Git
     requests.push({ url, options });
     return response(options.method === 'PUT' ? { commit: { sha: 'new-commit' } } : file([item, unrelated]));
   };
-  assert.deepEqual(await saveDeployment('test-token', item, draft, fetcher), draft);
+  assert.deepEqual(await saveDeployment('test-token', item, draft, ' Mona ', fetcher), draft);
   assert.equal(requests.length, 2);
   for (const { url, options } of requests) {
     assert.equal(new URL(url).origin, 'https://api.github.com');
@@ -91,6 +91,7 @@ test('save reads the latest SHA and commits merged data only to the intended Git
   const body = JSON.parse(requests[1].options.body);
   assert.equal(body.sha, 'latest-sha');
   assert.equal(body.branch, 'main');
+  assert.equal(body.message, 'Update deployment item\n\nSaved by: Mona');
   assert.deepEqual(JSON.parse(decodeContent(body.content)), [draft, unrelated]);
   assert.ok(!requests[1].options.body.includes('test-token'));
 });
@@ -98,13 +99,16 @@ test('save reads the latest SHA and commits merged data only to the intended Git
 test('new deployment is committed alongside existing items', async () => {
   const addition = { ...draft, environment: 'dev6' };
   let committed;
+  let message;
   const fetcher = async (url, options) => {
     if (options.method !== 'PUT') return response(file([item]));
     committed = JSON.parse(decodeContent(JSON.parse(options.body).content));
+    message = JSON.parse(options.body).message;
     return response({ commit: { sha: 'new-commit' } });
   };
-  await saveDeployment('test-token', null, addition, fetcher);
+  await saveDeployment('test-token', null, addition, 'Mona', fetcher);
   assert.deepEqual(committed, [item, addition]);
+  assert.equal(message, 'Add deployment item\n\nSaved by: Mona');
 });
 
 test('missing tokens and stale data never issue a write', async () => {
@@ -113,9 +117,9 @@ test('missing tokens and stale data never issue a write', async () => {
     calls.push(options.method);
     return response(file([{ ...item, version: 'new' }]));
   };
-  await assert.rejects(saveDeployment('', item, draft, fetcher), /token first/);
+  await assert.rejects(saveDeployment('', item, draft, 'Mona', fetcher), /token first/);
   assert.equal(calls.length, 0);
-  await assert.rejects(saveDeployment('test-token', item, draft, fetcher), /changed on GitHub/);
+  await assert.rejects(saveDeployment('test-token', item, draft, 'Mona', fetcher), /changed on GitHub/);
   assert.deepEqual(calls, [undefined]);
 });
 
@@ -123,14 +127,14 @@ test('authentication, conflicts, and uncertain network outcomes surface actionab
   await assert.rejects(readDeployments('bad-token', async () => response({}, 401)), /rejected the token/);
   await assert.rejects(readDeployments('', async () => response({}, 403)), /rate limit/);
   const conflict = async (url, options) => response(options.method === 'PUT' ? {} : file([item]), options.method === 'PUT' ? 409 : 200);
-  await assert.rejects(saveDeployment('test-token', item, draft, conflict), /file changed/);
+  await assert.rejects(saveDeployment('test-token', item, draft, 'Mona', conflict), /file changed/);
   await assert.rejects(readDeployments('', async () => { throw new TypeError('network'); }), /result is uncertain/);
 });
 
 test('malformed reads and unverified save responses cannot report success', async () => {
   await assert.rejects(readDeployments('', async () => response({ content: '' })), /unsupported file/);
   await assert.rejects(readDeployments('', async () => response(file({}))), /must be an array/);
-  await assert.rejects(saveDeployment('test-token', item, draft, async (url, options) =>
+  await assert.rejects(saveDeployment('test-token', item, draft, 'Mona', async (url, options) =>
     response(options.method === 'PUT' ? {} : file([item]))), /verify the item/);
 });
 
@@ -139,11 +143,22 @@ test('local datetime values preserve the deployment instant including seconds', 
   assert.equal(new Date(localTime(iso)).toISOString(), iso);
 });
 
-test('reset and delete require a single-line name of at most 120 characters', () => {
+test('save, reset and delete require a single-line name of at most 120 characters', () => {
   assert.equal(validateActor('  Mona Lisa '), 'Mona Lisa');
   for (const invalid of ['', '   ', 'a'.repeat(121), 'Mona\nLisa', undefined]) {
     assert.throws(() => validateActor(invalid), /Enter your name/);
   }
+});
+
+test('save rejects missing or invalid names before contacting GitHub', async () => {
+  const calls = [];
+  const fetcher = async () => { calls.push(1); return response(file([item])); };
+  for (const original of [null, item]) {
+    for (const invalid of [undefined, '', '   ', 'a'.repeat(121), 'Mona\nLisa']) {
+      await assert.rejects(saveDeployment('test-token', original, draft, invalid, fetcher), /Enter your name/);
+    }
+  }
+  assert.equal(calls.length, 0);
 });
 
 test('deleting removes only the matching row and refuses stale or missing rows', () => {
