@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Environment that was deployed
-        type: choice
-        options: [dev, staging, prod]
+        description: Environment that was deployed (must match an existing row)
+        type: string
+        default: dev
         required: true
       service:
         description: Service name (must match an existing row)

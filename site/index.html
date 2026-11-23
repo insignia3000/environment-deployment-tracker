@@ -6,59 +6,57 @@
   <title>Environment Deployment Tracker</title>
   <style>
     body { font-family: system-ui, sans-serif; margin: 2rem; color: #1f2328; }
-    table { border-collapse: collapse; width: 100%; max-width: 900px; }
+    table { border-collapse: collapse; width: 100%; }
     th, td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid #d0d7de; }
     th { background: #f6f8fa; }
-    .success { color: #1a7f37; } .failed { color: #cf222e; } .in-progress { color: #9a6700; }
-    .button { display: inline-block; padding: .4rem .7rem; border: 1px solid #8c959f; border-radius: 6px; color: #0969da; text-decoration: none; }
+    button { padding: .4rem .7rem; cursor: pointer; }
+    button:disabled { cursor: wait; }
+    input, select { font: inherit; padding: .4rem; box-sizing: border-box; }
+    td input { width: 100%; min-width: 9rem; }
+    td input[type="datetime-local"] { min-width: 17rem; }
+    td form { display: flex; gap: .4rem; }
+    fieldset { border: 0; padding: 0; min-width: 0; }
+    #token { width: min(100%, 30rem); }
+    #message { padding: .75rem; background: #f6f8fa; }
+    #message.error { color: #b42318; background: #fff1f0; }
+    input:focus, select:focus, button:focus-visible { outline: 2px solid #0969da; outline-offset: 2px; }
     .table-container { overflow-x: auto; }
   </style>
 </head>
 <body>
   <h1>Environment Deployment Tracker</h1>
-  <p>Record a deployment using the GitHub Actions form. Choose the environment and service,
-    and optionally enter the deployment time (defaults to now). The submitting GitHub user is recorded automatically.</p>
-  <p><a class="button" href="https://github.com/insignia3000/environment-deployment-tracker/actions/workflows/record-deployment.yml">Record deployment</a></p>
-  <p>Saving requires repository write access. Updates appear after the recording and publishing workflows finish.
-    All deployment details on this page are public.</p>
+  <p>Click a field to edit it, then save that row. Use <strong>New deployment</strong> to add an item.
+    Deployment times use your local timezone (<span id="timezone"></span>).</p>
+  <p><strong>Public POC:</strong> all saved details and their history are public.
+    "Deployed by" is entered manually, not verified. Saving records a deployment; it does not deploy an application.</p>
+  <details>
+    <summary>Enable saving with a GitHub token</summary>
+    <p>Create a short-lived <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">fine-grained token</a>
+      restricted to <strong>environment-deployment-tracker</strong>, with <strong>Contents: Read and write</strong>.
+      Your GitHub account must have repository write access.</p>
+    <p>The token is sent only to api.github.com, kept in memory, and cleared on reload.
+      Never paste it into a deployment field. Use Clear token when finished.</p>
+    <form id="auth-form">
+      <label for="token">GitHub token</label>
+      <input id="token" type="password" autocomplete="off" spellcheck="false" autocapitalize="none" required>
+      <button type="submit">Use token</button>
+      <button type="button" id="clear-token">Clear token</button>
+    </form>
+  </details>
+  <p id="auth-status" role="status">Read-only until a token is supplied.</p>
+  <p id="message" role="status" aria-live="polite">Loading published deployments...</p>
+  <fieldset id="editor" disabled>
+  <button type="button" id="add-deployment">New deployment</button>
   <div class="table-container">
   <table>
     <thead><tr><th>Environment</th><th>Service</th><th>Version</th><th>Status</th><th>Deployed</th><th>Deployed by</th><th>Actions</th></tr></thead>
     <tbody id="rows"><tr><td colspan="7">Loading…</td></tr></tbody>
   </table>
   </div>
-  <script>
-    fetch('deployments.json', { cache: 'no-store' })
-      .then(r => {
-        if (!r.ok) throw new Error(`Failed to load deployments: HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(data => {
-        const rows = document.getElementById('rows');
-        rows.replaceChildren(...data.map(d => {
-          const tr = document.createElement('tr');
-          [d.environment, d.service, d.version, d.status, new Date(d.deployedAt).toLocaleString(), d.deployedBy || 'Not recorded']
-            .forEach((v, i) => {
-              const td = document.createElement('td');
-              td.textContent = v;
-              if (i === 3) td.className = d.status;
-              tr.append(td);
-            });
-          const action = document.createElement('td');
-          const link = document.createElement('a');
-          link.href = 'https://github.com/insignia3000/environment-deployment-tracker/actions/workflows/record-deployment.yml';
-          link.className = 'button';
-          link.textContent = 'Record deployment';
-          link.setAttribute('aria-label', `Record deployment for ${d.service} in ${d.environment}`);
-          action.append(link);
-          tr.append(action);
-          return tr;
-        }));
-      })
-      .catch(error => {
-        console.error(error);
-        document.getElementById('rows').innerHTML = '<tr><td colspan="7">Failed to load deployments.json. Please reload the page.</td></tr>';
-      });
-  </script>
+  </fieldset>
+  <p>Each Save commits to GitHub immediately. Other viewers see updates after Pages finishes and they reload.
+    The <a href="https://github.com/insignia3000/environment-deployment-tracker/actions">Pages workflow</a>
+    republishes the site in the background.</p>
+  <script type="module" src="tracker.mjs"></script>
 </body>
 </html>

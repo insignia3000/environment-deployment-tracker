@@ -27,6 +27,8 @@ jobs:
           ref: main
       - name: Test deployment recording
         run: python3 -m unittest discover -s scripts -p 'test_*.py'
+      - name: Test inline editor
+        run: node --test scripts/tracker.test.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
